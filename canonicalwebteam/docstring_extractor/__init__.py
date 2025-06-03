@@ -10,6 +10,31 @@ NODE_TYPES = {
 }
 
 
+def _extract_source(target_node, source):
+    # Ensure node has all necessary offsets
+    if not all(
+        hasattr(target_node, attr)
+        for attr in ("lineno", "end_lineno", "col_offset", "end_col_offset")
+    ):
+        return ""
+
+    lines = source.splitlines(keepends=True)
+    start_line = target_node.lineno - 1
+    end_line = target_node.end_lineno - 1
+
+    # Single-line node
+    if start_line == end_line:
+        return lines[start_line][target_node.col_offset:target_node.end_col_offset]
+
+    # Multi-line node: slice first and last lines, take all between
+    code_lines = []
+    code_lines.append(lines[start_line][target_node.col_offset:])
+    if end_line - start_line > 1:
+        code_lines.extend(lines[start_line + 1: end_line])
+    code_lines.append(lines[end_line][: target_node.end_col_offset])
+
+    return ''.join(code_lines)
+
 def parse_docstrings(source):
     """Parse Python source code and yield a tuple of ast node instance, name,
     line number and docstring for each function/method, class and module.
@@ -129,7 +154,7 @@ def process_node(node, source):
         "params": params,
         "description": description,
         "arguments": arguments,
-        "source_segment": source,
+        "source_segment": _extract_source(node, source),
         "is_private": is_private,
     }
 
